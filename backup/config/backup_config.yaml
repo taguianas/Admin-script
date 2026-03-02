@@ -1,0 +1,73 @@
+# =============================================================================
+# backup_config.yaml — Configuration for incremental backup scripts
+#
+# Used by:
+#   backup/linux/backup_incremental.sh
+#   backup/windows/backup_incremental.py
+#
+# Environment variable interpolation is supported in string values:
+#   ${VAR}          — required variable (error if unset)
+#   ${VAR:-default} — optional variable with fallback
+# =============================================================================
+
+backup:
+  # Directories to back up (absolute paths)
+  # Linux examples: /etc, /home, /var/www
+  # Windows examples: C:\Users, C:\inetpub\wwwroot
+  source_dirs:
+    - /etc
+    - /home
+    - /var/www
+
+  # Backup destination root — each run creates a timestamped subdirectory
+  # Linux:   /mnt/backup  or  /srv/backups
+  # Windows: D:\Backups   or  \\server\share\backups
+  destination: /mnt/backup
+
+  # How many days to keep old snapshots before rotating them out
+  retention_days: 30
+
+  # Files and directories to exclude (rsync / shutil patterns)
+  exclude:
+    - "*.tmp"
+    - "*.log"
+    - "*.swp"
+    - ".git"
+    - ".svn"
+    - "node_modules"
+    - "__pycache__"
+    - "*.pyc"
+    - ".DS_Store"
+    - "Thumbs.db"
+
+  # Generate SHA-256 checksums for every backed-up file (recommended)
+  # Set to false to skip checksum generation on large backups for speed
+  verify_checksums: true
+
+  # Cron schedule expression (informational — not read by the script itself)
+  # Configure this in /etc/cron.d/ or Windows Task Scheduler manually
+  schedule: "0 2 * * *"  # 2:00 AM daily
+
+# -----------------------------------------------------------------------------
+# Notification settings (all channels are optional)
+# Credentials are read from environment variables — never hardcode them here
+# -----------------------------------------------------------------------------
+notifications:
+  email:
+    host: ${SMTP_HOST:-localhost}
+    port: ${SMTP_PORT:-587}
+    user: ${SMTP_USER:-}
+    password: ${SMTP_PASSWORD:-}
+    from: ${SMTP_FROM:-backup@example.com}
+    to:
+      - admin@example.com
+    tls: true
+
+  # Uncomment to enable Slack notifications
+  # slack:
+  #   webhook_url: ${SLACK_WEBHOOK_URL}
+
+  # Uncomment to enable Telegram notifications
+  # telegram:
+  #   bot_token: ${TELEGRAM_BOT_TOKEN}
+  #   chat_id: ${TELEGRAM_CHAT_ID}
