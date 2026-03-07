@@ -1,0 +1,58 @@
+monitoring:
+  interval_seconds: 60
+  timeout_seconds: 5
+  alert_cooldown_minutes: 30
+
+services:
+  # ── Ping checks ──────────────────────────────────────────────────────────
+  - name: Google DNS
+    type: ping
+    host: 8.8.8.8
+
+  - name: Cloudflare DNS
+    type: ping
+    host: 1.1.1.1
+
+  # ── HTTP checks ──────────────────────────────────────────────────────────
+  - name: Google HTTPS
+    type: http
+    url: https://www.google.com
+    expected_status: 200
+
+  - name: GitHub
+    type: http
+    url: https://github.com
+    expected_status: 200
+
+  # ── TCP checks ───────────────────────────────────────────────────────────
+  # Uncomment and adjust to match services running in your environment.
+  # - name: Local HTTP
+  #   type: tcp
+  #   host: localhost
+  #   port: 80
+
+  # - name: Local HTTPS
+  #   type: tcp
+  #   host: localhost
+  #   port: 443
+
+  # - name: Local SSH
+  #   type: tcp
+  #   host: localhost
+  #   port: 22
+
+notifications:
+  email:
+    host: ${SMTP_HOST:-}
+    port: ${SMTP_PORT:-587}
+    user: ${SMTP_USER:-}
+    password: ${SMTP_PASSWORD:-}
+    from: ${SMTP_FROM:-monitor@example.com}
+    to:
+      - ${SMTP_TO:-admin@example.com}
+    tls: true
+  slack:
+    webhook_url: ${SLACK_WEBHOOK_URL:-}
+  telegram:
+    bot_token: ${TELEGRAM_BOT_TOKEN:-}
+    chat_id: ${TELEGRAM_CHAT_ID:-}

@@ -5,7 +5,7 @@ administration tasks across Linux and Windows, covering three areas:
 
 - **User Management** : batch create/delete users, group management, cross-platform account auditing
 - **Incremental Backups** : hardlink-based snapshots (Linux rsync, Windows NTFS) with retention, integrity checks, and alerts
-- **Network Service Monitoring** : ping, TCP, HTTP checks with alerting and a web dashboard *(coming soon)*
+- **Network Service Monitoring** : ping, TCP, HTTP checks with alerting and a web dashboard
 
 ---
 
@@ -16,7 +16,7 @@ administration tasks across Linux and Windows, covering three areas:
 | 1 | Foundations : shared utilities, project skeleton | ✅ Complete |
 | 2 | User Management : Linux Bash, Windows PowerShell, Python audit | ✅ Complete |
 | 3 | Incremental Backups : Linux rsync, Windows NTFS hardlinks | ✅ Complete |
-| 4 | Network Service Monitoring | 🔧 In progress |
+| 4 | Network Service Monitoring | ✅ Complete |
 | 5 | Tests, CI/CD, packaging | ⏳ Pending |
 
 ---
@@ -54,18 +54,18 @@ system-admin/
 │   └── config/
 │       └── backup_config.yaml       # source_dirs, destination, retention_days, excludes
 │
-├── monitoring/                      # Phase 4 : in progress
-│   ├── monitor_services.py
-│   ├── alert_email.py
-│   ├── dashboard.py
+├── monitoring/                      # Phase 4 : network service monitoring
+│   ├── monitor_services.py          # ping / TCP / HTTP checks, alert logic, continuous loop
+│   ├── dashboard.py                 # Flask web dashboard + /api/status JSON endpoint
+│   ├── state.json                   # runtime state written by monitor_services.py (auto-created)
 │   └── config/
-│       └── services.yaml
+│       └── services.yaml            # service list, intervals, timeouts, notification channels
 │
 ├── tests/
 │   ├── test_common.py               # 17 tests : logger, config_loader
 │   ├── test_users.py                # 47 tests : audit_users parsers, reporter
 │   ├── test_backup.py               # 39 tests : snapshots, hardlinks, manifest, rotation
-│   └── test_monitoring.py           # Placeholder : Phase 4
+│   └── test_monitoring.py           # 46 tests : ping/TCP/HTTP checks, alert logic, state, run_once
 │
 ├── requirements.txt
 ├── LICENSE
@@ -84,10 +84,9 @@ pip install -r requirements.txt
 
 ### 2. Configure backups
 
-Copy the template and set your paths:
+Edit source dirs, destination, retention, and notification settings:
 
 ```bash
-# Edit source dirs, destination, retention, and notification settings
 nano backup/config/backup_config.yaml
 ```
 
@@ -103,6 +102,28 @@ backup:
   exclude:
     - "*.tmp"
     - "node_modules"
+```
+
+### 3. Configure monitoring
+
+Edit the service list and alert channels:
+
+```bash
+nano monitoring/config/services.yaml
+```
+
+Run a one-shot check to verify everything works:
+
+```bash
+python monitoring/monitor_services.py --once --dry-run
+```
+
+Then start the continuous monitor and dashboard:
+
+```bash
+python monitoring/monitor_services.py &
+python monitoring/dashboard.py
+# open http://localhost:5000
 ```
 
 ---
@@ -239,6 +260,73 @@ python backup\windows\restore.py `
 
 ---
 
+## Network Service Monitoring
+
+Continuously checks services via ping, TCP, and HTTP. Fires alerts on state
+changes (up → down, down → up) and repeats down alerts after a configurable
+cooldown. Persists state to `monitoring/state.json` between runs.
+
+### Monitor (CLI)
+
+```bash
+# Single check pass — useful for cron or testing
+python monitoring/monitor_services.py --once
+
+# Continuous loop (default interval: 60 s)
+python monitoring/monitor_services.py
+
+# Check but do not send any alerts
+python monitoring/monitor_services.py --once --dry-run
+
+# Use a custom config file
+python monitoring/monitor_services.py --config /etc/sysadmin/services.yaml
+```
+
+### Dashboard (web)
+
+```bash
+# Start the Flask dashboard on http://localhost:5000
+python monitoring/dashboard.py
+
+# Custom port / host
+python monitoring/dashboard.py --port 8080 --host 127.0.0.1
+```
+
+The dashboard auto-refreshes every 30 s. A JSON snapshot is also available
+at `GET /api/status`.
+
+### Service config (`monitoring/config/services.yaml`)
+
+```yaml
+monitoring:
+  interval_seconds: 60
+  timeout_seconds: 5
+  alert_cooldown_minutes: 30
+
+services:
+  - name: Google DNS
+    type: ping
+    host: 8.8.8.8
+
+  - name: My API
+    type: http
+    url: https://api.example.com/health
+    expected_status: 200
+    keyword: "ok"          # optional body keyword check
+
+  - name: PostgreSQL
+    type: tcp
+    host: db.example.com
+    port: 5432
+
+notifications:           # all channels optional — unconfigured ones are skipped
+  email:
+    host: ${SMTP_HOST:-}
+    ...
+```
+
+---
+
 ## Common Utilities
 
 ### `common/logger.py`
@@ -317,14 +405,14 @@ pytest tests/test_backup.py -v
 pytest tests/ --cov=common --cov-report=term-missing -v
 ```
 
-**Current: 103 tests passing**
+**Current: 148 tests passing**
 
 | File | Tests | Covers |
 |------|-------|--------|
 | `test_common.py` | 17 | logger, config_loader |
 | `test_users.py` | 47 | audit parsers, flag logic, JSON/HTML reporter |
 | `test_backup.py` | 39 | snapshots, hardlinks, manifest, rotation, reports |
-| `test_monitoring.py` | : | Phase 4 |
+| `test_monitoring.py` | 46 | ping/TCP/HTTP checks, alert logic, state, run_once |
 
 ---
 
